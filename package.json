@@ -1,6 +1,6 @@
 {
   "name": "@askalf/agent",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Open source computer-use agent — control your computer with natural language",
   "main": "./dist/cli.js",
   "types": "./dist/cli.d.ts",

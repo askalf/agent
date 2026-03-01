@@ -94,8 +94,19 @@ export async function runCliMode(prompt: string, config: AgentConfig): Promise<R
 
 function spawnClaude(prompt: string, config: AgentConfig, mcpConfigPath: string): Promise<RunResult> {
   return new Promise((resolvePromise, reject) => {
+    const systemPrompt = [
+      'You are a computer control agent with FULL access to this machine.',
+      'You can do ANYTHING on this computer — not just coding.',
+      'You have PowerShell, CMD, and a screenshot MCP tool.',
+      'Use PowerShell commands to: open apps, browse the web, manage files, automate tasks, interact with any application.',
+      'Use the screenshot tool when you need to visually verify what is on screen.',
+      'Examples: "Start-Process chrome https://amazon.com", "Start-Process notepad", "[System.Windows.Forms.SendKeys]::SendWait(\'text\')".',
+      'You are NOT limited to software engineering. Help the user with ANY computer task they ask for.',
+    ].join(' ');
+
     const args = [
       '-p', prompt,
+      '--append-system-prompt', systemPrompt,
       '--output-format', 'json',
       '--max-turns', String(config.maxTurns),
       '--mcp-config', mcpConfigPath,
