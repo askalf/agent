@@ -84,10 +84,10 @@ const TOOLS = [
 async function handleToolCall(name: string, args: Record<string, unknown>): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> }> {
   switch (name) {
     case 'screenshot': {
-      const base64 = await takeScreenshot();
+      const ss = await takeScreenshot();
       return {
         content: [
-          { type: 'image', data: base64, mimeType: 'image/png' },
+          { type: 'image', data: ss.data, mimeType: ss.mediaType },
         ],
       };
     }
@@ -103,12 +103,11 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       } else {
         await mouseClick(x, y, button as 'left' | 'right' | 'middle');
       }
-      // Return screenshot after action
       const ss = await takeScreenshot();
       return {
         content: [
           { type: 'text', text: `Clicked ${button} at (${x}, ${y})${double ? ' (double)' : ''}` },
-          { type: 'image', data: ss, mimeType: 'image/png' },
+          { type: 'image', data: ss.data, mimeType: ss.mediaType },
         ],
       };
     }
@@ -131,7 +130,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       return {
         content: [
           { type: 'text', text: `Typed: "${text.length > 50 ? text.slice(0, 50) + '...' : text}"` },
-          { type: 'image', data: ss, mimeType: 'image/png' },
+          { type: 'image', data: ss.data, mimeType: ss.mediaType },
         ],
       };
     }
@@ -143,7 +142,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       return {
         content: [
           { type: 'text', text: `Pressed: ${combo}` },
-          { type: 'image', data: ss, mimeType: 'image/png' },
+          { type: 'image', data: ss.data, mimeType: ss.mediaType },
         ],
       };
     }
@@ -158,7 +157,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       return {
         content: [
           { type: 'text', text: `Scrolled ${direction} ${clicks} clicks at (${x}, ${y})` },
-          { type: 'image', data: ss, mimeType: 'image/png' },
+          { type: 'image', data: ss.data, mimeType: ss.mediaType },
         ],
       };
     }

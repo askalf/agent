@@ -33,6 +33,7 @@ export async function runSdkMode(prompt: string, config: AgentConfig): Promise<R
   // Take initial screenshot
   output.action('screenshot', 'Capturing initial screen...');
   const initialSs = await takeScreenshot();
+  const ssMediaType = initialSs.mediaType;
 
   const tools: Anthropic.Beta.BetaTool[] = [
     {
@@ -58,7 +59,7 @@ export async function runSdkMode(prompt: string, config: AgentConfig): Promise<R
       content: [
         {
           type: 'image',
-          source: { type: 'base64', media_type: 'image/png', data: initialSs },
+          source: { type: 'base64', media_type: ssMediaType, data: initialSs.data },
         },
         { type: 'text', text: prompt },
       ],
@@ -158,7 +159,7 @@ async function executeComputerAction(
     switch (action) {
       case 'screenshot': {
         const ss = await takeScreenshot();
-        return [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: ss } }];
+        return [{ type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } }];
       }
       case 'left_click': {
         const [x, y] = input['coordinate'] as [number, number];
@@ -166,7 +167,7 @@ async function executeComputerAction(
         const ss = await takeScreenshot();
         return [
           { type: 'text', text: `Clicked at (${x}, ${y})` },
-          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: ss } },
+          { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
         ];
       }
       case 'right_click': {
@@ -175,7 +176,7 @@ async function executeComputerAction(
         const ss = await takeScreenshot();
         return [
           { type: 'text', text: `Right-clicked at (${x}, ${y})` },
-          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: ss } },
+          { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
         ];
       }
       case 'double_click': {
@@ -184,7 +185,7 @@ async function executeComputerAction(
         const ss = await takeScreenshot();
         return [
           { type: 'text', text: `Double-clicked at (${x}, ${y})` },
-          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: ss } },
+          { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
         ];
       }
       case 'mouse_move': {
@@ -198,7 +199,7 @@ async function executeComputerAction(
         const ss = await takeScreenshot();
         return [
           { type: 'text', text: `Typed: "${text.length > 50 ? text.slice(0, 50) + '...' : text}"` },
-          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: ss } },
+          { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
         ];
       }
       case 'key': {
@@ -207,7 +208,7 @@ async function executeComputerAction(
         const ss = await takeScreenshot();
         return [
           { type: 'text', text: `Pressed: ${key}` },
-          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: ss } },
+          { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
         ];
       }
       case 'scroll': {
@@ -218,7 +219,7 @@ async function executeComputerAction(
         const ss = await takeScreenshot();
         return [
           { type: 'text', text: `Scrolled ${direction} at (${x}, ${y})` },
-          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: ss } },
+          { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
         ];
       }
       default:
