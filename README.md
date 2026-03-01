@@ -2,7 +2,7 @@
 
 **Your Claude subscription now controls your entire computer.**
 
-One npm install. Uses your existing Claude Pro/Max subscription — zero extra API costs. PowerShell-first. Interactive sessions. Full computer control.
+One npm install. Uses your existing Claude Pro/Max subscription — zero extra API costs. PowerShell-first. Voice control. Interactive sessions. Full computer control.
 
 ## Install
 
@@ -25,9 +25,13 @@ askalf-agent auth
 
 # 3. Run
 askalf-agent run "open notepad and type hello world"
+
+# 4. Voice mode — talk to your computer
+askalf-agent voice-setup          # one-time: downloads whisper.cpp
+askalf-agent run "open notepad" --voice
 ```
 
-That's it. Claude opens Notepad, types "Hello World", then asks **"What next?"** — a persistent interactive session.
+That's it. Claude opens Notepad, types "Hello World", then asks **"What next?"** — type or speak your next command.
 
 ## How It Works
 
@@ -48,11 +52,20 @@ $ askalf-agent run "open chrome and go to amazon.com"
 ✔ Notepad now has "Hello World" in it.
 ℹ (14 turns)
 
+❯ What next?
+🎙 Listening... (press Enter to stop)
+Heard: "minimize everything and open spotify"
+
+✔ Desktop minimized and Spotify is now open.
+ℹ (4 turns)
+
 ❯ What next? exit
 ℹ Session ended.
 ```
 
 **PowerShell-first** — Claude runs PowerShell commands directly to open apps, browse the web, manage files, and automate tasks. No slow screenshot loops. A screenshot MCP tool is available when Claude needs to visually verify what's on screen, but most tasks complete entirely through PowerShell.
+
+**Voice control** — Add `--voice` to speak commands instead of typing. Uses local [whisper.cpp](https://github.com/ggerganov/whisper.cpp) for transcription — free, private, completely offline. No cloud APIs, no data leaves your machine.
 
 ## Authentication
 
@@ -93,6 +106,7 @@ askalf-agent run "go to github.com and star the SprayberryLabs/agent repo"
 Each task completes and prompts **"What next?"** for follow-up commands. Type `exit` or hit Ctrl+C to end the session.
 
 Options:
+- `-v, --voice` — Use voice input (microphone → whisper transcription)
 - `-m, --model <model>` — Model to use (default: `claude-sonnet-4-6`)
 - `-b, --budget <amount>` — Max budget in USD for SDK mode (default: `5.00`)
 - `-t, --turns <count>` — Max turns per task (default: `50`)
@@ -103,9 +117,19 @@ Configure authentication interactively.
 
 - `askalf-agent auth --status` — Show current auth status
 
+### `askalf-agent voice-setup`
+
+Download whisper.cpp binary and speech model for voice control. One-time setup.
+
+```bash
+askalf-agent voice-setup                # default: base.en model (~148MB)
+askalf-agent voice-setup --model tiny   # smaller/faster (~75MB)
+askalf-agent voice-setup --model small  # more accurate (~466MB)
+```
+
 ### `askalf-agent check`
 
-Verify platform dependencies are installed.
+Verify platform dependencies are installed (including voice/whisper status).
 
 ### `askalf-agent config`
 
@@ -124,6 +148,7 @@ askalf-agent config --model claude-opus-4-6 --turns 100
 | **Manage files** | Create, move, read, edit files anywhere on your system |
 | **Run commands** | Git, npm, Docker, Python — any CLI tool |
 | **See your screen** | Screenshot tool for visual verification when needed |
+| **Voice control** | Speak commands via local whisper.cpp — offline, private |
 | **Chain tasks** | Interactive loop — complete a task, ask "What next?" |
 
 ## Platform Support
@@ -135,12 +160,19 @@ askalf-agent config --model claude-opus-4-6 --turns 100
 | **Linux (X11)** | Full support | `xdotool` + `scrot` (`apt install xdotool scrot`) |
 | **Linux (Wayland)** | Full support | `ydotool` + `grim` (`apt install ydotool grim`) |
 
+**Voice control** requires SoX (Windows/macOS) or arecord (Linux, pre-installed). Whisper binary is downloaded automatically by `voice-setup`.
+
 Run `askalf-agent check` to verify your setup.
 
 ## Architecture
 
 ```
-askalf-agent run "open chrome"
+askalf-agent run "open chrome" --voice
+        │
+        ├── Input ─────────────────────────────
+        │       │
+        │       ├── --voice OFF: readline (keyboard)
+        │       └── --voice ON:  mic → whisper.cpp → text
         │
         ├── Claude Login (default)
         │       │
@@ -168,7 +200,12 @@ Config stored at `~/.askalf/config.json`:
   "authMode": "oauth",
   "model": "claude-sonnet-4-6",
   "maxBudgetUsd": 5.00,
-  "maxTurns": 50
+  "maxTurns": 50,
+  "voice": {
+    "whisperModel": "base",
+    "silenceThresholdDb": -40,
+    "silenceDurationMs": 1500
+  }
 }
 ```
 
