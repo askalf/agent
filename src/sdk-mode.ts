@@ -47,7 +47,7 @@ export async function runSdkMode(prompt: string, config: AgentConfig): Promise<R
       name: 'bash',
     } as unknown as Anthropic.Beta.BetaTool,
     {
-      type: 'text_editor_20250124' as unknown as 'text_editor_20241022',
+      type: 'text_editor_20250728' as unknown as 'text_editor_20241022',
       name: 'str_replace_based_edit_tool',
     } as unknown as Anthropic.Beta.BetaTool,
   ];
@@ -87,7 +87,7 @@ export async function runSdkMode(prompt: string, config: AgentConfig): Promise<R
       max_tokens: 4096,
       tools,
       messages,
-      betas: ['computer-use-2025-01-24'],
+      betas: ['computer-use-2025-11-24'],
     });
 
     totalInput += response.usage.input_tokens;
@@ -103,7 +103,14 @@ export async function runSdkMode(prompt: string, config: AgentConfig): Promise<R
         output.info(block.text.length > 200 ? block.text.slice(0, 200) + '...' : block.text);
       } else if (block.type === 'tool_use') {
         hasToolUse = true;
-        const result = await executeComputerAction(block.name, block.input as Record<string, unknown>);
+        let result: Array<{ type: string; text?: string; source?: { type: string; media_type: string; data: string } }>;
+        try {
+          result = await executeComputerAction(block.name, block.input as Record<string, unknown>);
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          output.warn(`Action failed: ${errMsg}`);
+          result = [{ type: 'text', text: `Error executing action: ${errMsg}` }];
+        }
         toolResults.push({
           role: 'user',
           content: [
