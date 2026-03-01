@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process';
-import { writeFile, unlink, mkdir } from 'node:fs/promises';
+import { writeFile, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
+import { createInterface } from 'node:readline';
 import * as output from './util/output.js';
 import type { AgentConfig } from './util/config.js';
 
@@ -15,9 +16,9 @@ interface RunResult {
 }
 
 export async function runCliMode(prompt: string, config: AgentConfig): Promise<RunResult> {
-  output.header('CLI Mode — Claude + MCP Computer Tools');
-  output.info(`Model: ${config.model} | Max turns: ${config.maxTurns}`);
-  output.info(`Budget: $${config.maxBudgetUsd.toFixed(2)}`);
+  output.header('AskAlf Agent — Computer Control');
+  output.info('Using Claude subscription (no per-token costs)');
+  output.info('Type "exit" or Ctrl+C to quit\n');
 
   // Write MCP config pointing to our stdio server
   const mcpConfigPath = join(tmpdir(), `askalf-mcp-${randomBytes(4).toString('hex')}.json`);
@@ -34,102 +35,136 @@ export async function runCliMode(prompt: string, config: AgentConfig): Promise<R
 
   await writeFile(mcpConfigPath, JSON.stringify(mcpConfig, null, 2));
 
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  let totalTurns = 0;
+  let currentPrompt = prompt;
+
   try {
-    const result = await spawnClaude(prompt, config, mcpConfigPath);
-    return result;
+    // Interactive loop
+    while (true) {
+      output.info(`\n→ ${currentPrompt}\n`);
+
+      const result = await spawnClaude(currentPrompt, config, mcpConfigPath);
+      totalTurns += result.turns;
+
+      if (result.text) {
+        output.success(result.text.length > 500 ? result.text.slice(0, 500) + '...' : result.text);
+      }
+
+      output.info(`(${result.turns} turns)\n`);
+
+      // Prompt for next task
+      const next = await new Promise<string>((res) => {
+        rl.question('\x1b[36m❯ What next?\x1b[0m ', (answer) => {
+          res(answer.trim());
+        });
+      });
+
+      if (!next || next.toLowerCase() === 'exit' || next.toLowerCase() === 'quit') {
+        output.info('Session ended.');
+        break;
+      }
+
+      currentPrompt = next;
+    }
+  } catch (err) {
+    // Handle Ctrl+C gracefully
+    if ((err as NodeJS.ErrnoException).code === 'ERR_USE_AFTER_CLOSE') {
+      output.info('\nSession ended.');
+    } else {
+      throw err;
+    }
   } finally {
+    rl.close();
     try { await unlink(mcpConfigPath); } catch { /* ignore */ }
   }
+
+  return {
+    text: 'Session ended',
+    inputTokens: 0,
+    outputTokens: 0,
+    costUsd: 0,
+    turns: totalTurns,
+  };
 }
 
 function spawnClaude(prompt: string, config: AgentConfig, mcpConfigPath: string): Promise<RunResult> {
-  return new Promise((resolve, reject) => {
-    // Write prompt to temp file to avoid shell escaping issues
-    const promptPath = join(tmpdir(), `askalf-prompt-${randomBytes(4).toString('hex')}.txt`);
+  return new Promise((resolvePromise, reject) => {
+    const args = [
+      '-p', prompt,
+      '--output-format', 'json',
+      '--max-turns', String(config.maxTurns),
+      '--mcp-config', mcpConfigPath,
+      '--dangerously-skip-permissions',
+    ];
 
-    writeFile(promptPath, prompt).then(() => {
-      const args = [
-        '-p', prompt,
-        '--output-format', 'json',
-        '--max-turns', String(config.maxTurns),
-        '--mcp-config', mcpConfigPath,
-        '--dangerously-skip-permissions',
-        '--model', config.model,
-      ];
+    const child = spawn('claude', args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        CLAUDECODE: '',
+      },
+    });
 
-      if (config.maxBudgetUsd > 0) {
-        args.push('--max-budget-usd', String(config.maxBudgetUsd));
+    let stdout = '';
+
+    child.stdout.on('data', (data: Buffer) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data: Buffer) => {
+      const line = data.toString().trim();
+      if (!line) return;
+      for (const segment of line.split('\n')) {
+        const s = segment.trim();
+        if (!s) continue;
+        if (s.includes('screenshot') || s.includes('mouse') || s.includes('keyboard') ||
+            s.includes('click') || s.includes('type') || s.includes('scroll') ||
+            s.includes('tool_use') || s.includes('askalf-computer')) {
+          output.action('→', s.length > 120 ? s.slice(0, 120) + '...' : s);
+        }
+      }
+    });
+
+    child.on('close', (code) => {
+      if (code !== 0 && !stdout) {
+        reject(new Error(`Claude exited with code ${code}`));
+        return;
       }
 
-      output.info(`Spawning: claude ${args.slice(0, 4).join(' ')} ...`);
+      try {
+        const parsed = JSON.parse(stdout);
+        resolvePromise({
+          text: parsed.result ?? parsed.content ?? '',
+          inputTokens: parsed.usage?.input_tokens ?? parsed.input_tokens ?? 0,
+          outputTokens: parsed.usage?.output_tokens ?? parsed.output_tokens ?? 0,
+          costUsd: parsed.total_cost_usd ?? parsed.cost_usd ?? 0,
+          turns: parsed.num_turns ?? 0,
+        });
+      } catch {
+        resolvePromise({
+          text: stdout.slice(0, 500) || 'Done',
+          inputTokens: 0,
+          outputTokens: 0,
+          costUsd: 0,
+          turns: 0,
+        });
+      }
+    });
 
-      const child = spawn('claude', args, {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: {
-          ...process.env,
-          // Don't pass API key — CLI mode uses OAuth
-        },
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      child.stdout.on('data', (data: Buffer) => {
-        stdout += data.toString();
-      });
-
-      child.stderr.on('data', (data: Buffer) => {
-        const line = data.toString().trim();
-        if (line) {
-          stderr += line + '\n';
-          // Print progress lines
-          if (line.includes('tool_use') || line.includes('screenshot') || line.includes('click')) {
-            output.action('claude', line);
-          }
-        }
-      });
-
-      child.on('close', (code) => {
-        // Clean up prompt file
-        unlink(promptPath).catch(() => {});
-
-        if (code !== 0 && !stdout) {
-          reject(new Error(`Claude CLI exited with code ${code}: ${stderr}`));
-          return;
-        }
-
-        try {
-          const parsed = JSON.parse(stdout);
-          resolve({
-            text: parsed.result ?? '',
-            inputTokens: parsed.usage?.input_tokens ?? 0,
-            outputTokens: parsed.usage?.output_tokens ?? 0,
-            costUsd: parsed.total_cost_usd ?? 0,
-            turns: parsed.num_turns ?? 0,
-          });
-        } catch {
-          // If JSON parse fails, return raw output
-          resolve({
-            text: stdout || stderr,
-            inputTokens: 0,
-            outputTokens: 0,
-            costUsd: 0,
-            turns: 0,
-          });
-        }
-      });
-
-      child.on('error', (err) => {
-        unlink(promptPath).catch(() => {});
-        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-          reject(new Error(
-            'Claude CLI not found. Install it with: npm i -g @anthropic-ai/claude-code\n' +
-            'Then authenticate with: claude auth login'
-          ));
-        } else {
-          reject(err);
-        }
-      });
-    }).catch(reject);
+    child.on('error', (err) => {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        reject(new Error(
+          'Claude CLI not found. Install: npm i -g @anthropic-ai/claude-code\n' +
+          'Then authenticate: claude auth login'
+        ));
+      } else {
+        reject(err);
+      }
+    });
   });
 }

@@ -14,9 +14,9 @@ const CONFIG_DIR = join(homedir(), '.askalf');
 const CONFIG_PATH = join(CONFIG_DIR, 'config.json');
 
 const DEFAULT_CONFIG: AgentConfig = {
-  authMode: 'api_key',
+  authMode: 'oauth',
   model: 'claude-sonnet-4-6',
-  maxBudgetUsd: 1.0,
+  maxBudgetUsd: 5.0,
   maxTurns: 50,
 };
 

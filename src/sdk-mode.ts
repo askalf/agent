@@ -21,13 +21,21 @@ const PRICING: Record<string, { input: number; output: number }> = {
   'claude-haiku-4-5-20251001': { input: 0.8, output: 4 },
 };
 
+// Screenshot resize target (must match screenshot.ts resize logic)
+const SCREENSHOT_MAX_WIDTH = 1280;
+
 export async function runSdkMode(prompt: string, config: AgentConfig): Promise<RunResult> {
   const client = new Anthropic({ apiKey: config.apiKey });
-  const { width, height } = await getScreenSize();
+  const { width: realWidth, height: realHeight } = await getScreenSize();
   const model = config.model;
 
+  // Calculate the display dimensions we tell Claude (matches screenshot size)
+  const scaleFactor = Math.min(1.0, SCREENSHOT_MAX_WIDTH / realWidth);
+  const width = Math.round(realWidth * scaleFactor);
+  const height = Math.round(realHeight * scaleFactor);
+
   output.header('SDK Mode — Computer Use');
-  output.info(`Model: ${model} | Screen: ${width}x${height}`);
+  output.info(`Model: ${model} | Screen: ${realWidth}x${realHeight} → ${width}x${height}`);
   output.info(`Budget: $${config.maxBudgetUsd.toFixed(2)} | Max turns: ${config.maxTurns}`);
 
   // Take initial screenshot
@@ -106,7 +114,7 @@ export async function runSdkMode(prompt: string, config: AgentConfig): Promise<R
         hasToolUse = true;
         let result: Array<{ type: string; text?: string; source?: { type: string; media_type: string; data: string } }>;
         try {
-          result = await executeComputerAction(block.name, block.input as Record<string, unknown>);
+          result = await executeComputerAction(block.name, block.input as Record<string, unknown>, scaleFactor);
         } catch (err) {
           const errMsg = err instanceof Error ? err.message : String(err);
           output.warn(`Action failed: ${errMsg}`);
@@ -150,8 +158,13 @@ export async function runSdkMode(prompt: string, config: AgentConfig): Promise<R
 async function executeComputerAction(
   toolName: string,
   input: Record<string, unknown>,
+  scaleFactor: number,
 ): Promise<Array<{ type: string; text?: string; source?: { type: string; media_type: string; data: string } }>> {
   const action = input['action'] as string | undefined;
+
+  // Scale coordinates from screenshot space back to real screen space
+  const scaleCoord = (coord: [number, number]): [number, number] =>
+    [Math.round(coord[0] / scaleFactor), Math.round(coord[1] / scaleFactor)];
 
   if (toolName === 'computer' && action) {
     output.action('computer', action);
@@ -162,36 +175,40 @@ async function executeComputerAction(
         return [{ type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } }];
       }
       case 'left_click': {
-        const [x, y] = input['coordinate'] as [number, number];
-        await mouseClick(x!, y!, 'left');
+        const raw = input['coordinate'] as [number, number];
+        const [x, y] = scaleCoord(raw);
+        await mouseClick(x, y, 'left');
         const ss = await takeScreenshot();
         return [
-          { type: 'text', text: `Clicked at (${x}, ${y})` },
+          { type: 'text', text: `Clicked at (${raw[0]}, ${raw[1]}) → screen (${x}, ${y})` },
           { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
         ];
       }
       case 'right_click': {
-        const [x, y] = input['coordinate'] as [number, number];
-        await mouseClick(x!, y!, 'right');
+        const raw = input['coordinate'] as [number, number];
+        const [x, y] = scaleCoord(raw);
+        await mouseClick(x, y, 'right');
         const ss = await takeScreenshot();
         return [
-          { type: 'text', text: `Right-clicked at (${x}, ${y})` },
+          { type: 'text', text: `Right-clicked at (${raw[0]}, ${raw[1]}) → screen (${x}, ${y})` },
           { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
         ];
       }
       case 'double_click': {
-        const [x, y] = input['coordinate'] as [number, number];
-        await mouseDoubleClick(x!, y!);
+        const raw = input['coordinate'] as [number, number];
+        const [x, y] = scaleCoord(raw);
+        await mouseDoubleClick(x, y);
         const ss = await takeScreenshot();
         return [
-          { type: 'text', text: `Double-clicked at (${x}, ${y})` },
+          { type: 'text', text: `Double-clicked at (${raw[0]}, ${raw[1]}) → screen (${x}, ${y})` },
           { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
         ];
       }
       case 'mouse_move': {
-        const [x, y] = input['coordinate'] as [number, number];
-        await mouseMove(x!, y!);
-        return [{ type: 'text', text: `Moved mouse to (${x}, ${y})` }];
+        const raw = input['coordinate'] as [number, number];
+        const [x, y] = scaleCoord(raw);
+        await mouseMove(x, y);
+        return [{ type: 'text', text: `Moved mouse to (${raw[0]}, ${raw[1]}) → screen (${x}, ${y})` }];
       }
       case 'type': {
         const text = input['text'] as string;
@@ -212,13 +229,14 @@ async function executeComputerAction(
         ];
       }
       case 'scroll': {
-        const [x, y] = input['coordinate'] as [number, number];
-        const direction = (input['direction'] as string) === 'up' ? 'up' : 'down' as const;
-        const amount = (input['amount'] as number) ?? 3;
-        await mouseScroll(x!, y!, direction, amount);
+        const raw = input['coordinate'] as [number, number];
+        const [x, y] = scaleCoord(raw);
+        const direction = (input['scroll_direction'] as string) === 'up' ? 'up' : 'down' as const;
+        const amount = (input['scroll_amount'] as number) ?? 3;
+        await mouseScroll(x, y, direction, amount);
         const ss = await takeScreenshot();
         return [
-          { type: 'text', text: `Scrolled ${direction} at (${x}, ${y})` },
+          { type: 'text', text: `Scrolled ${direction} at (${raw[0]}, ${raw[1]}) → screen (${x}, ${y})` },
           { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
         ];
       }
