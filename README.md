@@ -1,8 +1,8 @@
 # @askalf/agent
 
-**Open source computer-use agent — control your computer with natural language.**
+**Your Claude subscription now controls your entire computer.**
 
-One command to install. Bring your own Anthropic API key or Claude subscription. Full computer control: mouse, keyboard, screenshots, browser, terminal.
+One npm install. Uses your existing Claude Pro/Max subscription — zero extra API costs. PowerShell-first. Interactive sessions. Full computer control.
 
 ## Install
 
@@ -10,58 +10,92 @@ One command to install. Bring your own Anthropic API key or Claude subscription.
 npm i -g @askalf/agent
 ```
 
-Requires Node.js 20+.
+Requires Node.js 20+ and [Claude CLI](https://docs.anthropic.com/en/docs/claude-code).
 
 ## Quick Start
 
 ```bash
-# 1. Authenticate
-askalf-agent auth
+# 1. Install Claude CLI (if you don't have it)
+npm i -g @anthropic-ai/claude-code
+claude auth login
 
-# 2. Run
-askalf-agent run "open Chrome and search for flights to Tokyo"
+# 2. Authenticate
+askalf-agent auth
+# Select "Claude Login" (recommended)
+
+# 3. Run
+askalf-agent run "open notepad and type hello world"
 ```
+
+That's it. Claude opens Notepad, types "Hello World", then asks **"What next?"** — a persistent interactive session.
+
+## How It Works
+
+```
+$ askalf-agent run "open chrome and go to amazon.com"
+
+✔ AskAlf Agent — Computer Control
+ℹ Using Claude subscription (no per-token costs)
+ℹ Type "exit" or Ctrl+C to quit
+
+ℹ → open chrome and go to amazon.com
+
+✔ Chrome is open with Amazon loaded.
+ℹ (6 turns)
+
+❯ What next? open notepad and type hello world
+
+✔ Notepad now has "Hello World" in it.
+ℹ (14 turns)
+
+❯ What next? exit
+ℹ Session ended.
+```
+
+**PowerShell-first** — Claude runs PowerShell commands directly to open apps, browse the web, manage files, and automate tasks. No slow screenshot loops. A screenshot MCP tool is available when Claude needs to visually verify what's on screen, but most tasks complete entirely through PowerShell.
 
 ## Authentication
 
-Two modes — choose based on how you want to pay:
+### Claude Login (Recommended)
 
-### API Key (SDK Mode)
-
-Paste your Anthropic API key (`sk-ant-...`). Pay per use. Uses the Anthropic SDK directly with the `computer_20251124` tool for full computer control.
-
-```bash
-askalf-agent auth
-# Select "API Key" → paste your key
-```
-
-### Claude OAuth (CLI Mode)
-
-Use your existing Claude Pro/Team subscription. Requires the [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) installed. Launches a local MCP server with computer control tools.
+Uses your existing Claude Pro/Max subscription. **Zero extra API costs.** This is the default.
 
 ```bash
 npm i -g @anthropic-ai/claude-code
 claude auth login
 askalf-agent auth
-# Select "Claude OAuth"
+# Select "Claude Login"
 ```
+
+### API Key (Fallback)
+
+Paste your Anthropic API key. Pay per token. Uses the Anthropic SDK directly with the `computer_20251124` tool.
+
+```bash
+askalf-agent auth
+# Select "API Key" → paste your sk-ant-... key
+```
+
+> **Note:** SDK mode uses computer-use API calls which cost per token. A simple task like "open notepad" can cost several dollars. Claude Login mode is strongly recommended.
 
 ## Commands
 
 ### `askalf-agent run "<prompt>"`
 
-Run the agent with a natural language instruction.
+Start an interactive computer control session.
 
 ```bash
 askalf-agent run "resize all images in ./assets to 800px wide"
-askalf-agent run "open VS Code, create a new file called app.py, and write a Flask hello world"
-askalf-agent run "go to github.com and star the askalf/agent repo"
+askalf-agent run "open VS Code and create a Flask hello world app"
+askalf-agent run "go to github.com and star the SprayberryLabs/agent repo"
 ```
+
+Each task completes and prompts **"What next?"** for follow-up commands. Type `exit` or hit Ctrl+C to end the session.
 
 Options:
 - `-m, --model <model>` — Model to use (default: `claude-sonnet-4-6`)
-- `-b, --budget <amount>` — Max budget in USD (default: `1.00`)
-- `-t, --turns <count>` — Max turns (default: `50`)
+- `-b, --budget <amount>` — Max budget in USD for SDK mode (default: `5.00`)
+- `-t, --turns <count>` — Max turns per task (default: `50`)
 
 ### `askalf-agent auth`
 
@@ -73,112 +107,80 @@ Configure authentication interactively.
 
 Verify platform dependencies are installed.
 
-```bash
-$ askalf-agent check
-
-Platform Check
-──────────────────
-
-Platform: win32
-Display: win32
-
-✔ Screenshot: powershell
-✔ Mouse control: powershell
-✔ Keyboard control: powershell
-✔ Claude CLI: installed
-
-✔ All dependencies available!
-```
-
 ### `askalf-agent config`
 
 View or update configuration.
 
 ```bash
-askalf-agent config --model claude-opus-4-6 --budget 5.00
+askalf-agent config --model claude-opus-4-6 --turns 100
 ```
 
-## Platform Dependencies
+## What It Can Do
 
-| OS | Required | Install |
-|----|----------|---------|
-| **macOS** | `cliclick` | `brew install cliclick` |
-| **Linux (X11)** | `xdotool`, `scrot` | `sudo apt install xdotool scrot` |
-| **Linux (Wayland)** | `ydotool`, `grim` | `sudo apt install ydotool grim` |
-| **Windows** | PowerShell 5.1+ | Pre-installed |
+| Capability | How |
+|---|---|
+| **Open apps** | `Start-Process chrome`, `Start-Process notepad` |
+| **Browse the web** | Opens Chrome, navigates sites, fills forms |
+| **Manage files** | Create, move, read, edit files anywhere on your system |
+| **Run commands** | Git, npm, Docker, Python — any CLI tool |
+| **See your screen** | Screenshot tool for visual verification when needed |
+| **Chain tasks** | Interactive loop — complete a task, ask "What next?" |
 
-Run `askalf-agent check` to see what's installed and what's missing.
+## Platform Support
 
-## How It Works
+| OS | Status | Computer Control |
+|----|--------|-----------------|
+| **Windows** | Full support | PowerShell (pre-installed) |
+| **macOS** | Full support | `cliclick` (`brew install cliclick`) |
+| **Linux (X11)** | Full support | `xdotool` + `scrot` (`apt install xdotool scrot`) |
+| **Linux (Wayland)** | Full support | `ydotool` + `grim` (`apt install ydotool grim`) |
 
-### SDK Mode (API Key)
-
-Uses the Anthropic SDK directly with the `computer_20251124` beta tool:
-
-1. Captures a screenshot of your screen
-2. Sends it to Claude with your prompt
-3. Claude responds with computer actions (click, type, scroll, etc.)
-4. Actions are executed via platform-native tools
-5. New screenshot is captured and sent back
-6. Loop continues until the task is complete or budget is reached
-
-### CLI Mode (Claude OAuth)
-
-Spawns the Claude CLI with a local MCP server that provides computer control tools:
-
-1. Starts a local MCP server exposing screenshot, mouse, keyboard, and scroll tools
-2. Passes the MCP config to `claude` CLI
-3. Claude CLI calls the MCP tools to interact with your computer
-4. Same capabilities as SDK mode, powered by your Claude subscription
-
-## Configuration
-
-Config is stored at `~/.askalf/config.json`:
-
-```json
-{
-  "authMode": "api_key",
-  "apiKey": "sk-ant-...",
-  "model": "claude-sonnet-4-6",
-  "maxBudgetUsd": 1.00,
-  "maxTurns": 50
-}
-```
+Run `askalf-agent check` to verify your setup.
 
 ## Architecture
 
 ```
-askalf-agent run "task"
-    │
-    ├── API Key? ──→ SDK Mode
-    │                   │
-    │                   ├── Anthropic SDK
-    │                   ├── computer_20251124 tool
-    │                   ├── bash_20250124 tool
-    │                   └── text_editor tool
-    │
-    └── OAuth? ────→ CLI Mode
-                        │
-                        ├── Local MCP Server (stdio)
-                        │   ├── screenshot
-                        │   ├── mouse_click / mouse_move
-                        │   ├── keyboard_type / keyboard_key
-                        │   └── scroll
-                        │
-                        └── claude CLI --mcp-config
+askalf-agent run "open chrome"
+        │
+        ├── Claude Login (default)
+        │       │
+        │       ├── Spawns claude CLI
+        │       ├── --append-system-prompt (computer control agent)
+        │       ├── --mcp-config (screenshot tool)
+        │       ├── Claude uses built-in bash → PowerShell
+        │       └── Interactive loop: task → "What next?" → repeat
+        │
+        └── API Key (fallback)
+                │
+                ├── Anthropic SDK direct
+                ├── computer_20251124 + bash + text_editor tools
+                └── Single-run with cost summary
 ```
 
-Both modes use the same cross-platform control layer:
+The MCP server exposes a single `screenshot` tool. All other computer control happens through Claude's built-in bash tool running PowerShell commands — this is dramatically faster than screenshot-based control loops.
 
-| Action | macOS | Linux (X11) | Linux (Wayland) | Windows |
-|--------|-------|-------------|-----------------|---------|
-| Screenshot | `screencapture` | `scrot` | `grim` | PowerShell |
-| Mouse | `cliclick` | `xdotool` | `ydotool` | PowerShell |
-| Keyboard | `cliclick` | `xdotool` | `ydotool` | `SendKeys` |
+## Configuration
+
+Config stored at `~/.askalf/config.json`:
+
+```json
+{
+  "authMode": "oauth",
+  "model": "claude-sonnet-4-6",
+  "maxBudgetUsd": 5.00,
+  "maxTurns": 50
+}
+```
 
 ## Full Platform
 
 This CLI is a standalone agent for individual use. For multi-agent orchestration, scheduling, cost controls, 24 built-in tools, and team collaboration, check out the full [AskAlf platform](https://askalf.org).
+
+## Links
+
+- [Try page](https://askalf.org/try)
+- [npm package](https://www.npmjs.com/package/@askalf/agent)
+- [@ask_alf on X](https://x.com/ask_alf)
 
 ## License
 
