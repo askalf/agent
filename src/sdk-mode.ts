@@ -24,6 +24,31 @@ const PRICING: Record<string, { input: number; output: number }> = {
 // Screenshot resize target (must match screenshot.ts resize logic)
 const SCREENSHOT_MAX_WIDTH = 1280;
 
+const SYSTEM_PROMPT = `You are a computer control agent. CRITICAL: Use the bash tool with PowerShell commands instead of screenshot-click loops whenever possible.
+
+## Rules
+1. Prefer bash tool (PowerShell) over computer tool for ALL tasks that can be done via command line.
+2. Only use the computer tool (screenshot/click) when the task genuinely requires visual interaction.
+3. Minimize screenshot frequency — don't screenshot after every action. Trust command output and exit codes.
+4. Combine multiple steps into single PowerShell commands to reduce turns and cost.
+
+## PowerShell patterns
+- Open apps: Start-Process "chrome" "https://url.com"
+- File ops: Get-Content, Set-Content, Copy-Item, Move-Item, New-Item, Remove-Item
+- Window management: (New-Object -ComObject Shell.Application).MinimizeAll()
+- Running processes: Get-Process | Where-Object {$_.MainWindowTitle -ne ""}
+- Typing into apps: Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("text")
+- Clipboard: Set-Clipboard "text"; Get-Clipboard
+- Install software: winget install --id "App.Name" --accept-package-agreements
+- Web requests: Invoke-WebRequest -Uri "url" | Select-Object -ExpandProperty Content
+- System info: Get-ComputerInfo, Get-Volume, Get-NetIPAddress
+
+## Anti-patterns
+- Do NOT screenshot to verify a window opened. Just open it.
+- Do NOT click through UI menus when a PowerShell command exists.
+- Do NOT take screenshots after every single action.
+- Do NOT use multiple turns for simple one-command tasks.`;
+
 export async function runSdkMode(prompt: string, config: AgentConfig): Promise<RunResult> {
   const client = new Anthropic({ apiKey: config.apiKey });
   const { width: realWidth, height: realHeight } = await getScreenSize();
@@ -96,6 +121,7 @@ export async function runSdkMode(prompt: string, config: AgentConfig): Promise<R
       max_tokens: 4096,
       tools,
       messages,
+      system: SYSTEM_PROMPT,
       betas: ['computer-use-2025-11-24'],
     });
 
@@ -178,30 +204,24 @@ async function executeComputerAction(
         const raw = input['coordinate'] as [number, number];
         const [x, y] = scaleCoord(raw);
         await mouseClick(x, y, 'left');
-        const ss = await takeScreenshot();
         return [
-          { type: 'text', text: `Clicked at (${raw[0]}, ${raw[1]}) → screen (${x}, ${y})` },
-          { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
+          { type: 'text', text: `Clicked at (${raw[0]}, ${raw[1]}) → screen (${x}, ${y}). Use screenshot action to verify if needed.` },
         ];
       }
       case 'right_click': {
         const raw = input['coordinate'] as [number, number];
         const [x, y] = scaleCoord(raw);
         await mouseClick(x, y, 'right');
-        const ss = await takeScreenshot();
         return [
-          { type: 'text', text: `Right-clicked at (${raw[0]}, ${raw[1]}) → screen (${x}, ${y})` },
-          { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
+          { type: 'text', text: `Right-clicked at (${raw[0]}, ${raw[1]}) → screen (${x}, ${y}). Use screenshot action to verify if needed.` },
         ];
       }
       case 'double_click': {
         const raw = input['coordinate'] as [number, number];
         const [x, y] = scaleCoord(raw);
         await mouseDoubleClick(x, y);
-        const ss = await takeScreenshot();
         return [
-          { type: 'text', text: `Double-clicked at (${raw[0]}, ${raw[1]}) → screen (${x}, ${y})` },
-          { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
+          { type: 'text', text: `Double-clicked at (${raw[0]}, ${raw[1]}) → screen (${x}, ${y}). Use screenshot action to verify if needed.` },
         ];
       }
       case 'mouse_move': {
@@ -213,19 +233,15 @@ async function executeComputerAction(
       case 'type': {
         const text = input['text'] as string;
         await keyboardType(text);
-        const ss = await takeScreenshot();
         return [
-          { type: 'text', text: `Typed: "${text.length > 50 ? text.slice(0, 50) + '...' : text}"` },
-          { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
+          { type: 'text', text: `Typed: "${text.length > 50 ? text.slice(0, 50) + '...' : text}". Use screenshot action to verify if needed.` },
         ];
       }
       case 'key': {
         const key = input['text'] as string;
         await keyboardKey(key);
-        const ss = await takeScreenshot();
         return [
-          { type: 'text', text: `Pressed: ${key}` },
-          { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
+          { type: 'text', text: `Pressed: ${key}. Use screenshot action to verify if needed.` },
         ];
       }
       case 'scroll': {
@@ -234,10 +250,8 @@ async function executeComputerAction(
         const direction = (input['scroll_direction'] as string) === 'up' ? 'up' : 'down' as const;
         const amount = (input['scroll_amount'] as number) ?? 3;
         await mouseScroll(x, y, direction, amount);
-        const ss = await takeScreenshot();
         return [
-          { type: 'text', text: `Scrolled ${direction} at (${raw[0]}, ${raw[1]}) → screen (${x}, ${y})` },
-          { type: 'image', source: { type: 'base64', media_type: ss.mediaType, data: ss.data } },
+          { type: 'text', text: `Scrolled ${direction} at (${raw[0]}, ${raw[1]}) → screen (${x}, ${y}). Use screenshot action to verify if needed.` },
         ];
       }
       default:
