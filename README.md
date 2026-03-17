@@ -150,6 +150,16 @@ askalf-agent config --model claude-opus-4-6 --turns 100
 | **See your screen** | Screenshot tool for visual verification when needed |
 | **Voice control** | Speak commands via local whisper.cpp — offline, private |
 | **Chain tasks** | Interactive loop — complete a task, ask "What next?" |
+| **Session memory** | Remembers what worked and what failed across the session |
+| **Self-correction** | Learns from errors within the session and adapts approach |
+
+## Safety Guardrails
+
+Built-in command guardrails prevent catastrophic operations before they reach the shell:
+
+- **Hard blocks** — recursive root deletion, disk formatting, registry destruction, boot config changes, firewall disabling, user account creation, ransomware-like encryption patterns
+- **System prompt injection** — Claude is instructed to verify destructive operations and prefer safe alternatives
+- **Voice pipeline hardening** — input validation, temp file cleanup, process isolation
 
 ## Platform Support
 
@@ -211,12 +221,18 @@ Config stored at `~/.askalf/config.json`:
 
 ## Full Platform
 
-This CLI is a standalone agent for individual use. For multi-agent orchestration, scheduling, cost controls, 24 built-in tools, and team collaboration, check out the full [AskAlf platform](https://askalf.org).
+This CLI is a standalone computer control agent. For the full autonomous fleet — 7 core agents, persistent memory, 16 communication channels (including OpenClaw bridge), 28 marketplace packages, and a mission control dashboard:
+
+```bash
+curl -fsSL https://get.askalf.org | bash
+```
+
+[askalf.org](https://askalf.org) | [GitHub](https://github.com/SprayberryLabs/askalf) | [Architecture](https://github.com/SprayberryLabs/askalf/blob/main/docs/ARCHITECTURE.md)
 
 ## Links
 
-- [Try page](https://askalf.org/try)
 - [npm package](https://www.npmjs.com/package/@askalf/agent)
+- [AskAlf Platform](https://askalf.org)
 - [@ask_alf on X](https://x.com/ask_alf)
 
 ## License
