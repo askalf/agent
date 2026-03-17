@@ -1,138 +1,208 @@
 #!/usr/bin/env node
+/**
+ * AskAlf Agent CLI
+ * Connect local devices to your AskAlf fleet via WebSocket bridge.
+ *
+ * Usage:
+ *   askalf-agent connect <api-key> [--url wss://askalf.org]
+ *   askalf-agent daemon                # Run as background service
+ *   askalf-agent status                # Check connection status
+ *   askalf-agent disconnect            # Disconnect from fleet
+ */
 
-import { Command } from 'commander';
-import { authInteractive, showAuthStatus } from './auth.js';
-import { run } from './run.js';
-import { checkPlatform } from './platform/index.js';
-import { loadConfig, saveConfig } from './util/config.js';
-import { isWhisperInstalled, setupWhisper } from './voice/index.js';
-import * as output from './util/output.js';
-import chalk from 'chalk';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { AgentBridge } from './bridge.js';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { homedir, hostname, platform, type, release } from 'os';
+import { execSync, spawn } from 'child_process';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
+const CONFIG_DIR = join(homedir(), '.askalf');
+const CONFIG_FILE = join(CONFIG_DIR, 'agent.json');
+const PID_FILE = join(CONFIG_DIR, 'agent.pid');
 
-const program = new Command();
+interface AgentConfig {
+  apiKey: string;
+  url: string;
+  deviceName?: string;
+}
 
-program
-  .name('askalf-agent')
-  .description('Open source computer-use agent — control your computer with natural language')
-  .version(pkg.version);
+function loadConfig(): AgentConfig | null {
+  if (!existsSync(CONFIG_FILE)) return null;
+  try {
+    return JSON.parse(readFileSync(CONFIG_FILE, 'utf8'));
+  } catch {
+    return null;
+  }
+}
 
-program
-  .command('auth')
-  .description('Configure authentication (API key or Claude OAuth)')
-  .option('--status', 'Show current auth status')
-  .action(async (opts) => {
-    if (opts.status) {
-      await showAuthStatus();
-    } else {
-      await authInteractive();
-    }
+function saveConfig(config: AgentConfig): void {
+  if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true });
+  writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+}
+
+function getDeviceInfo() {
+  return {
+    hostname: hostname(),
+    os: `${type()} ${release()} (${platform()})`,
+    capabilities: {
+      shell: true,
+      filesystem: true,
+      git: hasCommand('git'),
+      docker: hasCommand('docker'),
+      node: hasCommand('node'),
+      python: hasCommand('python3') || hasCommand('python'),
+    },
+  };
+}
+
+function hasCommand(cmd: string): boolean {
+  try {
+    execSync(`${platform() === 'win32' ? 'where' : 'which'} ${cmd}`, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function connect(apiKey: string, url: string, deviceName?: string): Promise<void> {
+  const device = getDeviceInfo();
+  const config: AgentConfig = { apiKey, url, deviceName: deviceName || device.hostname };
+  saveConfig(config);
+
+  console.log(`\n  AskAlf Agent v1.0.0`);
+  console.log(`  ─────────────────────────`);
+  console.log(`  Device:  ${config.deviceName}`);
+  console.log(`  OS:      ${device.os}`);
+  console.log(`  Server:  ${url}`);
+  console.log(`  Caps:    ${Object.entries(device.capabilities).filter(([,v]) => v).map(([k]) => k).join(', ')}`);
+  console.log(`  ─────────────────────────\n`);
+
+  const bridge = new AgentBridge({
+    apiKey,
+    url,
+    deviceName: config.deviceName!,
+    hostname: device.hostname,
+    os: device.os,
+    capabilities: device.capabilities,
   });
 
-program
-  .command('run')
-  .description('Run the agent with a natural language prompt')
-  .argument('<prompt>', 'What you want the agent to do')
-  .option('-m, --model <model>', 'Model to use')
-  .option('-b, --budget <amount>', 'Max budget in USD')
-  .option('-t, --turns <count>', 'Max turns')
-  .option('-v, --voice', 'Use voice input (microphone → whisper transcription)')
-  .action(async (prompt, opts) => {
-    // Apply CLI overrides to config
-    if (opts.model || opts.budget || opts.turns) {
-      const overrides: Record<string, unknown> = {};
-      if (opts.model) overrides['model'] = opts.model;
-      if (opts.budget) overrides['maxBudgetUsd'] = parseFloat(opts.budget);
-      if (opts.turns) overrides['maxTurns'] = parseInt(opts.turns, 10);
-      await saveConfig(overrides);
-    }
+  // Handle shutdown
+  const shutdown = () => {
+    console.log('\n  Disconnecting...');
+    bridge.disconnect();
+    process.exit(0);
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 
-    await run(prompt, { voice: opts.voice });
+  await bridge.connect();
+}
+
+async function daemon(): Promise<void> {
+  const config = loadConfig();
+  if (!config) {
+    console.error('No configuration found. Run `askalf-agent connect <api-key>` first.');
+    process.exit(1);
+  }
+
+  // Spawn detached process
+  const child = spawn(process.execPath, [process.argv[1]!, 'connect', config.apiKey, '--url', config.url], {
+    detached: true,
+    stdio: 'ignore',
   });
+  child.unref();
 
-program
-  .command('check')
-  .description('Check platform dependencies and capabilities')
-  .action(async () => {
-    output.header('Platform Check');
+  if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true });
+  writeFileSync(PID_FILE, String(child.pid));
 
-    const check = await checkPlatform();
+  console.log(`Agent daemon started (PID: ${child.pid})`);
+  process.exit(0);
+}
 
-    console.log();
-    console.log(chalk.dim('Platform:'), check.platform);
-    console.log(chalk.dim('Display:'), check.displayServer);
-    console.log();
+function status(): void {
+  const config = loadConfig();
+  if (!config) {
+    console.log('Not configured. Run `askalf-agent connect <api-key>` first.');
+    return;
+  }
 
-    const icon = (ok: boolean) => ok ? chalk.green('✔') : chalk.red('✖');
-
-    console.log(icon(check.screenshot.available), 'Screenshot:', check.screenshot.tool);
-    console.log(icon(check.mouse.available), 'Mouse control:', check.mouse.tool);
-    console.log(icon(check.keyboard.available), 'Keyboard control:', check.keyboard.tool);
-    console.log(icon(check.claudeCli), 'Claude CLI:', check.claudeCli ? 'installed' : 'not found');
-    console.log();
-
-    const whisperReady = await isWhisperInstalled();
-    console.log(icon(whisperReady), 'Voice (whisper.cpp):', whisperReady ? 'installed' : 'not found — run: askalf-agent voice-setup');
-    console.log();
-
-    if (check.missingDeps.length > 0) {
-      output.warn(`Missing dependencies: ${check.missingDeps.join(', ')}`);
-      if (check.installHint) {
-        output.info(`Install with: ${check.installHint}`);
-      }
-    } else {
-      output.success('All dependencies available!');
+  if (existsSync(PID_FILE)) {
+    const pid = readFileSync(PID_FILE, 'utf8').trim();
+    try {
+      process.kill(parseInt(pid), 0); // Check if process exists
+      console.log(`Agent running (PID: ${pid})`);
+      console.log(`  Server: ${config.url}`);
+      console.log(`  Device: ${config.deviceName}`);
+    } catch {
+      console.log('Agent not running (stale PID file).');
     }
+  } else {
+    console.log('Agent not running.');
+  }
+}
 
-    const config = await loadConfig();
-    console.log();
-    console.log(chalk.dim('Auth mode:'), config.authMode ?? 'not configured');
-    console.log(chalk.dim('Model:'), config.model);
-    console.log(chalk.dim('Budget:'), `$${config.maxBudgetUsd.toFixed(2)}`);
-    console.log(chalk.dim('Max turns:'), config.maxTurns);
-    console.log(chalk.dim('Guardrails:'), chalk.green('active'));
-  });
+function disconnect(): void {
+  if (existsSync(PID_FILE)) {
+    const pid = parseInt(readFileSync(PID_FILE, 'utf8').trim());
+    try {
+      process.kill(pid, 'SIGTERM');
+      console.log(`Agent stopped (PID: ${pid})`);
+    } catch {
+      console.log('Agent was not running.');
+    }
+    try { require('fs').unlinkSync(PID_FILE); } catch { /* ignore */ }
+  } else {
+    console.log('No running agent found.');
+  }
+}
 
-program
-  .command('voice-setup')
-  .description('Download whisper.cpp binary and speech model for voice control')
-  .option('--model <size>', 'Model size: tiny, base, small, medium', 'base')
-  .action(async (opts) => {
-    const validModels = ['tiny', 'base', 'small', 'medium'] as const;
-    const model = opts.model as typeof validModels[number];
-    if (!validModels.includes(model)) {
-      output.error(`Invalid model: ${opts.model}. Choose: ${validModels.join(', ')}`);
+// Parse CLI arguments
+const args = process.argv.slice(2);
+
+// Flags
+if (args.includes('--version') || args.includes('-v')) {
+  console.log('1.0.0');
+  process.exit(0);
+}
+
+// If --help/-h is present anywhere, show top-level help regardless of subcommand
+const command = (args.includes('--help') || args.includes('-h')) ? undefined : args[0];
+
+switch (command) {
+  case 'connect': {
+    const apiKey = args[1];
+    if (!apiKey) {
+      console.error('Usage: askalf-agent connect <api-key> [--url wss://askalf.org] [--name my-device]');
       process.exit(1);
     }
-    await setupWhisper(model);
-  });
+    const urlIdx = args.indexOf('--url');
+    const url = urlIdx >= 0 ? args[urlIdx + 1]! : 'wss://askalf.org';
+    const nameIdx = args.indexOf('--name');
+    const deviceName = nameIdx >= 0 ? args[nameIdx + 1] : undefined;
+    connect(apiKey, url, deviceName);
+    break;
+  }
+  case 'daemon':
+    daemon();
+    break;
+  case 'status':
+    status();
+    break;
+  case 'disconnect':
+    disconnect();
+    break;
+  default:
+    console.log(`
+  AskAlf Agent CLI v1.0.0
 
-program
-  .command('config')
-  .description('Update configuration')
-  .option('-m, --model <model>', 'Default model')
-  .option('-b, --budget <amount>', 'Default max budget in USD')
-  .option('-t, --turns <count>', 'Default max turns')
-  .action(async (opts) => {
-    const updates: Record<string, unknown> = {};
-    if (opts.model) updates['model'] = opts.model;
-    if (opts.budget) updates['maxBudgetUsd'] = parseFloat(opts.budget);
-    if (opts.turns) updates['maxTurns'] = parseInt(opts.turns, 10);
+  Usage:
+    askalf-agent connect <api-key>    Connect this device to your fleet
+    askalf-agent daemon               Run as background service
+    askalf-agent status               Check connection status
+    askalf-agent disconnect           Stop the agent
 
-    if (Object.keys(updates).length === 0) {
-      const config = await loadConfig();
-      output.header('Current Configuration');
-      console.log(JSON.stringify(config, null, 2));
-    } else {
-      const config = await saveConfig(updates);
-      output.success('Configuration updated');
-      console.log(JSON.stringify(config, null, 2));
-    }
-  });
-
-program.parse();
+  Options:
+    --url <url>    Server URL (default: wss://askalf.org)
+    --name <name>  Device name (default: hostname)
+`);
+}

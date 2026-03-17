@@ -1,240 +1,145 @@
 # @askalf/agent
 
-**Your Claude subscription now controls your entire computer.**
+**Connect any device to your AskAlf fleet.**
 
-One npm install. Uses your existing Claude Pro/Max subscription — zero extra API costs. PowerShell-first. Voice control. Interactive sessions. Full computer control.
+WebSocket bridge that registers your machine as a device in the AskAlf platform. Once connected, the fleet's 7 core agents (Backend Dev, Frontend Dev, QA, Infra, Security, Watchdog, Writer) can dispatch tasks to your device — executed via Claude CLI with full codebase access.
+
+Part of [AskAlf](https://askalf.org) — the self-hosted autonomous AI agent fleet platform with multi-agent orchestration, persistent memory, 16 communication channels, and a 28-package marketplace.
 
 ## Install
 
 ```bash
-npm i -g @askalf/agent
+npm install -g @askalf/agent
 ```
 
-Requires Node.js 20+ and [Claude CLI](https://docs.anthropic.com/en/docs/claude-code).
-
-## Quick Start
-
-```bash
-# 1. Install Claude CLI (if you don't have it)
-npm i -g @anthropic-ai/claude-code
-claude auth login
-
-# 2. Authenticate
-askalf-agent auth
-# Select "Claude Login" (recommended)
-
-# 3. Run
-askalf-agent run "open notepad and type hello world"
-
-# 4. Voice mode — talk to your computer
-askalf-agent voice-setup          # one-time: downloads whisper.cpp
-askalf-agent run "open notepad" --voice
-```
-
-That's it. Claude opens Notepad, types "Hello World", then asks **"What next?"** — type or speak your next command.
-
-## How It Works
-
-```
-$ askalf-agent run "open chrome and go to amazon.com"
-
-✔ AskAlf Agent — Computer Control
-ℹ Using Claude subscription (no per-token costs)
-ℹ Type "exit" or Ctrl+C to quit
-
-ℹ → open chrome and go to amazon.com
-
-✔ Chrome is open with Amazon loaded.
-ℹ (6 turns)
-
-❯ What next? open notepad and type hello world
-
-✔ Notepad now has "Hello World" in it.
-ℹ (14 turns)
-
-❯ What next?
-🎙 Listening... (press Enter to stop)
-Heard: "minimize everything and open spotify"
-
-✔ Desktop minimized and Spotify is now open.
-ℹ (4 turns)
-
-❯ What next? exit
-ℹ Session ended.
-```
-
-**PowerShell-first** — Claude runs PowerShell commands directly to open apps, browse the web, manage files, and automate tasks. No slow screenshot loops. A screenshot MCP tool is available when Claude needs to visually verify what's on screen, but most tasks complete entirely through PowerShell.
-
-**Voice control** — Add `--voice` to speak commands instead of typing. Uses local [whisper.cpp](https://github.com/ggerganov/whisper.cpp) for transcription — free, private, completely offline. No cloud APIs, no data leaves your machine.
-
-## Authentication
-
-### Claude Login (Recommended)
-
-Uses your existing Claude Pro/Max subscription. **Zero extra API costs.** This is the default.
-
-```bash
-npm i -g @anthropic-ai/claude-code
-claude auth login
-askalf-agent auth
-# Select "Claude Login"
-```
-
-### API Key (Fallback)
-
-Paste your Anthropic API key. Pay per token. Uses the Anthropic SDK directly with the `computer_20251124` tool.
-
-```bash
-askalf-agent auth
-# Select "API Key" → paste your sk-ant-... key
-```
-
-> **Note:** SDK mode uses computer-use API calls which cost per token. A simple task like "open notepad" can cost several dollars. Claude Login mode is strongly recommended.
-
-## Commands
-
-### `askalf-agent run "<prompt>"`
-
-Start an interactive computer control session.
-
-```bash
-askalf-agent run "resize all images in ./assets to 800px wide"
-askalf-agent run "open VS Code and create a Flask hello world app"
-askalf-agent run "go to github.com and star the SprayberryLabs/agent repo"
-```
-
-Each task completes and prompts **"What next?"** for follow-up commands. Type `exit` or hit Ctrl+C to end the session.
-
-Options:
-- `-v, --voice` — Use voice input (microphone → whisper transcription)
-- `-m, --model <model>` — Model to use (default: `claude-sonnet-4-6`)
-- `-b, --budget <amount>` — Max budget in USD for SDK mode (default: `5.00`)
-- `-t, --turns <count>` — Max turns per task (default: `50`)
-
-### `askalf-agent auth`
-
-Configure authentication interactively.
-
-- `askalf-agent auth --status` — Show current auth status
-
-### `askalf-agent voice-setup`
-
-Download whisper.cpp binary and speech model for voice control. One-time setup.
-
-```bash
-askalf-agent voice-setup                # default: base.en model (~148MB)
-askalf-agent voice-setup --model tiny   # smaller/faster (~75MB)
-askalf-agent voice-setup --model small  # more accurate (~466MB)
-```
-
-### `askalf-agent check`
-
-Verify platform dependencies are installed (including voice/whisper status).
-
-### `askalf-agent config`
-
-View or update configuration.
-
-```bash
-askalf-agent config --model claude-opus-4-6 --turns 100
-```
-
-## What It Can Do
-
-| Capability | How |
-|---|---|
-| **Open apps** | `Start-Process chrome`, `Start-Process notepad` |
-| **Browse the web** | Opens Chrome, navigates sites, fills forms |
-| **Manage files** | Create, move, read, edit files anywhere on your system |
-| **Run commands** | Git, npm, Docker, Python — any CLI tool |
-| **See your screen** | Screenshot tool for visual verification when needed |
-| **Voice control** | Speak commands via local whisper.cpp — offline, private |
-| **Chain tasks** | Interactive loop — complete a task, ask "What next?" |
-| **Session memory** | Remembers what worked and what failed across the session |
-| **Self-correction** | Learns from errors within the session and adapts approach |
-
-## Safety Guardrails
-
-Built-in command guardrails prevent catastrophic operations before they reach the shell:
-
-- **Hard blocks** — recursive root deletion, disk formatting, registry destruction, boot config changes, firewall disabling, user account creation, ransomware-like encryption patterns
-- **System prompt injection** — Claude is instructed to verify destructive operations and prefer safe alternatives
-- **Voice pipeline hardening** — input validation, temp file cleanup, process isolation
-
-## Platform Support
-
-| OS | Status | Computer Control |
-|----|--------|-----------------|
-| **Windows** | Full support | PowerShell (pre-installed) |
-| **macOS** | Full support | `cliclick` (`brew install cliclick`) |
-| **Linux (X11)** | Full support | `xdotool` + `scrot` (`apt install xdotool scrot`) |
-| **Linux (Wayland)** | Full support | `ydotool` + `grim` (`apt install ydotool grim`) |
-
-**Voice control** requires SoX (Windows/macOS) or arecord (Linux, pre-installed). Whisper binary is downloaded automatically by `voice-setup`.
-
-Run `askalf-agent check` to verify your setup.
-
-## Architecture
-
-```
-askalf-agent run "open chrome" --voice
-        │
-        ├── Input ─────────────────────────────
-        │       │
-        │       ├── --voice OFF: readline (keyboard)
-        │       └── --voice ON:  mic → whisper.cpp → text
-        │
-        ├── Claude Login (default)
-        │       │
-        │       ├── Spawns claude CLI
-        │       ├── --append-system-prompt (computer control agent)
-        │       ├── --mcp-config (screenshot tool)
-        │       ├── Claude uses built-in bash → PowerShell
-        │       └── Interactive loop: task → "What next?" → repeat
-        │
-        └── API Key (fallback)
-                │
-                ├── Anthropic SDK direct
-                ├── computer_20251124 + bash + text_editor tools
-                └── Single-run with cost summary
-```
-
-The MCP server exposes a single `screenshot` tool. All other computer control happens through Claude's built-in bash tool running PowerShell commands — this is dramatically faster than screenshot-based control loops.
-
-## Configuration
-
-Config stored at `~/.askalf/config.json`:
-
-```json
-{
-  "authMode": "oauth",
-  "model": "claude-sonnet-4-6",
-  "maxBudgetUsd": 5.00,
-  "maxTurns": 50,
-  "voice": {
-    "whisperModel": "base",
-    "silenceThresholdDb": -40,
-    "silenceDurationMs": 1500
-  }
-}
-```
-
-## Full Platform
-
-This CLI is a standalone computer control agent. For the full autonomous fleet — 7 core agents, persistent memory, 16 communication channels (including OpenClaw bridge), 28 marketplace packages, and a mission control dashboard:
+Don't have AskAlf yet? Deploy the full platform first:
 
 ```bash
 curl -fsSL https://get.askalf.org | bash
 ```
 
-[askalf.org](https://askalf.org) | [GitHub](https://github.com/SprayberryLabs/askalf) | [Architecture](https://github.com/SprayberryLabs/askalf/blob/main/docs/ARCHITECTURE.md)
+## Quick Start
 
-## Links
+```bash
+# Connect this device to your fleet
+askalf-agent connect <your-api-key>
 
-- [npm package](https://www.npmjs.com/package/@askalf/agent)
-- [AskAlf Platform](https://askalf.org)
-- [@ask_alf on X](https://x.com/ask_alf)
+# Connect to a self-hosted instance
+askalf-agent connect <your-api-key> --url wss://your-server.com
+
+# Run as a background daemon
+askalf-agent daemon
+
+# Check connection status
+askalf-agent status
+
+# Disconnect
+askalf-agent disconnect
+```
+
+## What It Does
+
+When connected, your device:
+
+1. **Registers** with the AskAlf fleet via WebSocket
+2. **Reports capabilities** — shell, git, docker, node, python, filesystem (auto-detected)
+3. **Receives tasks** dispatched by the Forge orchestrator or unified dispatcher
+4. **Executes via Claude CLI** — `claude --print --output-format json`
+5. **Reports results** back to the fleet with token counts, cost, and duration
+6. **Streams progress** — the fleet sees output in real-time via the event bus
+
+The fleet sees your device in the Devices tab and can route tasks to it based on capabilities. The autonomous brain can also dispatch investigation tickets to devices when fleet agents identify issues.
+
+## How It Works
+
+```
+Your Machine                    AskAlf Fleet
+┌──────────────┐    WSS     ┌──────────────────────┐
+│ askalf-agent  │◄──────────►│  Forge Orchestrator   │
+│              │            │  Unified Dispatcher   │
+│ Claude CLI   │            │  Event Bus (Redis)    │
+│ Your Code    │            │  Brain + Memory       │
+│              │            │  26 MCP Tools         │
+└──────────────┘            └──────────────────────┘
+                                    │
+                            ┌───────┴───────┐
+                            │  Dashboard    │
+                            │  Devices Tab  │
+                            │  Fleet View   │
+                            └───────────────┘
+```
+
+- **Heartbeat** every 30 seconds to maintain presence
+- **Auto-reconnect** on disconnect (5 second backoff)
+- **Task cancellation** via SIGTERM
+- **10 minute timeout** per execution (configurable)
+- **Progress streaming** — the fleet sees output in real-time
+- **API key auth** — Bearer token on WebSocket handshake
+
+## Requirements
+
+- Node.js 22+ (18+ may work but 22 is recommended)
+- [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) installed (`npm install -g @anthropic-ai/claude-code`)
+- An AskAlf instance running (deploy with `curl -fsSL https://get.askalf.org | bash`)
+
+## Configuration
+
+Config stored in `~/.askalf/agent.json`:
+
+```json
+{
+  "apiKey": "your-forge-api-key",
+  "url": "wss://your-server.com",
+  "deviceName": "my-laptop"
+}
+```
+
+Get your API key from the AskAlf dashboard at Settings > API Keys, or use the `FORGE_API_KEY` from your `.env` file.
+
+## Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--url <url>` | Server WebSocket URL | `wss://askalf.org` |
+| `--name <name>` | Device display name | System hostname |
+| `--version` | Show version | |
+| `--help` | Show help | |
+
+## Programmatic Usage
+
+```typescript
+import { AgentBridge } from '@askalf/agent';
+
+const bridge = new AgentBridge({
+  apiKey: 'your-api-key',
+  url: 'wss://your-server.com',
+  deviceName: 'my-server',
+  hostname: 'prod-01',
+  os: 'Linux 6.1',
+  capabilities: { shell: true, docker: true, git: true, node: true, python: true, filesystem: true },
+});
+
+await bridge.connect();
+
+// The bridge will now:
+// - Register with the fleet
+// - Accept dispatched tasks
+// - Execute via Claude CLI
+// - Report results back
+// - Maintain heartbeat
+// - Auto-reconnect on failure
+```
+
+## Supported Platforms
+
+Runs anywhere Node.js runs — Linux, macOS, Windows, Raspberry Pi, cloud VMs, CI runners.
+
+## Related
+
+- [AskAlf Platform](https://github.com/SprayberryLabs/askalf) — the full platform
+- [Architecture Docs](https://github.com/SprayberryLabs/askalf/blob/main/docs/ARCHITECTURE.md) — system internals
+- [Contributing Guide](https://github.com/SprayberryLabs/askalf/blob/main/CONTRIBUTING.md) — how to contribute
 
 ## License
 
-MIT
+MIT — [askalf.org](https://askalf.org)

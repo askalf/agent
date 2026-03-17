@@ -1,57 +1,34 @@
 {
   "name": "@askalf/agent",
-  "version": "0.3.7",
-  "description": "Open source computer-use agent — control your computer with natural language or voice",
-  "main": "./dist/cli.js",
-  "types": "./dist/cli.d.ts",
+  "version": "1.0.1",
+  "description": "AskAlf Agent CLI — Connect local devices to your AskAlf fleet",
   "type": "module",
+  "main": "dist/index.js",
   "bin": {
-    "askalf-agent": "./dist/cli.js"
+    "askalf-agent": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "dev": "tsx src/cli.ts"
   },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.74.0",
-    "@modelcontextprotocol/sdk": "^1.25.2",
-    "commander": "^13.1.0",
-    "chalk": "^5.4.1",
-    "inquirer": "^12.4.2",
-    "express": "^5.1.0"
-  },
-  "devDependencies": {
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.0.0",
-    "typescript": "^5.7.0"
-  },
-  "peerDependencies": {
-    "@anthropic-ai/claude-code": "*"
-  },
-  "peerDependenciesMeta": {
-    "@anthropic-ai/claude-code": {
-      "optional": true
-    }
-  },
-  "engines": {
-    "node": ">=20.0.0"
-  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": ["askalf", "agent", "cli", "ai", "autonomous", "fleet", "self-hosted"],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/SprayberryLabs/agent"
+    "url": "https://github.com/SprayberryLabs/askalf.git",
+    "directory": "packages/agent-cli"
   },
-  "keywords": [
-    "ai",
-    "agent",
-    "computer-use",
-    "claude",
-    "anthropic",
-    "automation",
-    "voice-control",
-    "whisper",
-    "speech-to-text"
-  ]
+  "homepage": "https://askalf.org",
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.4.0"
+  }
 }
