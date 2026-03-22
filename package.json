@@ -1,6 +1,6 @@
 {
   "name": "@askalf/agent",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "AskAlf Agent CLI — Connect any device to your AskAlf team",
   "type": "module",
   "main": "dist/index.js",
@@ -15,12 +15,20 @@
     "dist",
     "README.md"
   ],
-  "keywords": ["askalf", "agent", "cli", "ai", "autonomous", "ai-workforce", "self-hosted", "websocket"],
+  "keywords": [
+    "askalf",
+    "agent",
+    "cli",
+    "ai",
+    "autonomous",
+    "ai-workforce",
+    "self-hosted",
+    "websocket"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/SprayberryLabs/askalf.git",
-    "directory": "packages/agent-cli"
+    "url": "https://github.com/askalf/agent.git"
   },
   "homepage": "https://askalf.org",
   "dependencies": {
@@ -28,7 +36,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "@types/ws": "^8.5.10",
+    "@types/ws": "^8.18.1",
     "typescript": "^5.4.0"
   }
 }
