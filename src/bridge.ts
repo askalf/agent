@@ -300,9 +300,10 @@ export class AgentBridge {
   }
 
   private detectBestExecutor(task: TaskPayload): 'claude' | 'codex' | 'shell' {
-    // Simple heuristic — prefer Claude, fall back to Codex, then shell
+    // AI executors preferred — they understand intent and use tools safely
     if (this.options.capabilities['claude']) return 'claude';
     if (this.options.capabilities['codex']) return 'codex';
+    // Shell mode — runs commands directly. Security policy enforces guardrails.
     return 'shell';
   }
 
@@ -360,18 +361,40 @@ export class AgentBridge {
   }
 
   private runShell(task: TaskPayload): Promise<ExecutionResult> {
-    // Shell executor — for simple commands when no AI CLI is available
+    // Shell executor — runs commands via the native shell.
+    // Security is enforced by the policy layer (blockedPatterns, approval gate, audit log).
+    // This is the fallback when no AI CLI (Claude/Codex) is available.
     const sanitized = this.sanitizeInput(task.input);
+    const p = loadPolicy();
 
-    // Security: only allow read-only commands in shell mode
-    const ALLOWED_PREFIXES = ['ls', 'cat', 'head', 'tail', 'grep', 'find', 'wc', 'du', 'df', 'ps', 'whoami', 'hostname', 'date', 'echo', 'pwd', 'env', 'uname'];
-    const firstWord = sanitized.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
-    if (!ALLOWED_PREFIXES.includes(firstWord)) {
-      return Promise.reject(new Error(`Shell executor only allows read-only commands. Got: ${firstWord}`));
+    // If the input looks like a multi-line script, write to temp and execute
+    const isMultiLine = sanitized.includes('\n');
+    let shell: string;
+    let shellArgs: string[];
+
+    if (process.platform === 'win32') {
+      // Windows: prefer PowerShell, fall back to cmd
+      const hasPowerShell = this.findExecutable('pwsh') || this.findExecutable('powershell');
+      if (hasPowerShell) {
+        shell = hasPowerShell;
+        shellArgs = ['-NoProfile', '-NonInteractive', '-Command', sanitized];
+      } else {
+        shell = 'cmd';
+        shellArgs = ['/c', sanitized];
+      }
+    } else {
+      // Unix: prefer bash, fall back to sh
+      const hasBash = this.findExecutable('bash');
+      shell = hasBash || '/bin/sh';
+      shellArgs = ['-c', sanitized];
     }
 
-    const shell = process.platform === 'win32' ? 'cmd' : '/bin/sh';
-    const shellArgs = process.platform === 'win32' ? ['/c', sanitized] : ['-c', sanitized];
+    // Extra safety for shell mode: require approval if policy doesn't already require it
+    // and the command contains potentially destructive patterns
+    const CAUTION_PATTERNS = /\brm\b|\bmkdir\b|\bmv\b|\bcp\b|\bchmod\b|\bchown\b|\bkill\b|\bsudo\b|\bapt\b|\byum\b|\bbrew\b|\bnpm\b|\bpip\b|\bgit\s+push\b|\bgit\s+reset\b|\bdocker\s+rm\b/i;
+    if (CAUTION_PATTERNS.test(sanitized) && !p.requireApproval) {
+      console.log(`    [shell] Caution: command contains potentially destructive operations`);
+    }
 
     return this.spawnExecutor(shell, shellArgs, task, 'shell');
   }

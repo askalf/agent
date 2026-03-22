@@ -40,20 +40,45 @@ const DEFAULT_POLICY: SecurityPolicy = {
   requireApproval: false,
   trustedAgents: [],
   blockedPatterns: [
+    // Filesystem destruction
     'rm -rf /',
     'rm -rf ~',
-    'mkfs',
-    ':(){:|:&};:',  // fork bomb
+    'rm -rf \\*',
+    'mkfs\\.',
     'dd if=/dev/zero',
-    'chmod -R 777 /',
+    'dd if=/dev/random',
     '> /dev/sda',
-    'wget.*| sh',
-    'curl.*| sh',
-    'eval\\s*\\(',
+    'chmod -R 777 /',
+    'chown -R.*/',
+    // Process/system attacks
+    ':(){:|:&};:',      // fork bomb
+    'shutdown',
+    'reboot',
+    'init 0',
+    'halt',
+    // Database destruction
     'DROP TABLE',
     'DROP DATABASE',
-    'TRUNCATE',
+    'TRUNCATE TABLE',
     'DELETE FROM.*WHERE 1',
+    'DELETE FROM.*WHERE true',
+    // Remote code execution via pipe
+    'curl.*\\|.*sh',
+    'wget.*\\|.*sh',
+    'curl.*\\|.*bash',
+    'wget.*\\|.*bash',
+    // Credential theft
+    'cat.*/etc/shadow',
+    'cat.*/etc/passwd',
+    'cat.*\\.ssh/id_',
+    'cat.*\\.env',
+    // Network attacks
+    'nmap -sS',
+    'hping3',
+    // Windows specific
+    'format c:',
+    'del /f /s /q c:\\\\',
+    'Remove-Item.*-Recurse.*-Force.*C:\\\\',
   ],
   allowedPaths: [],
   maxTimeoutMs: 600_000,

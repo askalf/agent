@@ -46,6 +46,8 @@ function detectCapabilities(): Record<string, boolean> {
   return {
     shell: true,
     filesystem: true,
+    bash: hasCommand('bash'),
+    powershell: hasCommand('pwsh') || hasCommand('powershell'),
     git: hasCommand('git'),
     docker: hasCommand('docker'),
     node: hasCommand('node'),
@@ -53,10 +55,21 @@ function detectCapabilities(): Record<string, boolean> {
     claude: hasCommand('claude'),
     codex: hasCommand('codex'),
     curl: hasCommand('curl'),
+    wget: hasCommand('wget'),
     ssh: hasCommand('ssh'),
     rsync: hasCommand('rsync'),
     ffmpeg: hasCommand('ffmpeg'),
     jq: hasCommand('jq'),
+    make: hasCommand('make'),
+    go: hasCommand('go'),
+    rust: hasCommand('cargo'),
+    java: hasCommand('java'),
+    dotnet: hasCommand('dotnet'),
+    kubectl: hasCommand('kubectl'),
+    terraform: hasCommand('terraform'),
+    aws: hasCommand('aws'),
+    gcloud: hasCommand('gcloud'),
+    az: hasCommand('az'),
   };
 }
 
